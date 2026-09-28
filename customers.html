@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clients</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
+    <div id="topbarMount"></div>
+    <div class="content-area">
+      <div class="page-header">
+        <h2>👥 Clients</h2>
+        <div style="display:flex;gap:8px">
+          <div class="search-bar"><span>🔍</span><input type="text" id="searchInput" placeholder="Rechercher..." oninput="renderTable()"></div>
+          <button class="btn btn-primary" onclick="newCustomer()">➕ Nouveau</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table><thead><tr><th>Nom</th><th>Téléphone</th><th>Adresse</th><th>Total acheté</th><th>Crédit</th><th>Depuis</th><th>Actions</th></tr></thead>
+        <tbody id="customerBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="customerModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="customerModalTitle">Nouveau client</h3>
+      <button class="modal-close" onclick="closeModal('customerModal')">✕</button>
+    </div>
+    <input type="hidden" id="editCustomerId">
+    <div class="form-row">
+      <div class="form-group"><label>Nom *</label><input type="text" id="cName"></div>
+      <div class="form-group"><label>Téléphone</label><input type="text" id="cPhone"></div>
+    </div>
+    <div class="form-group"><label>Adresse</label><input type="text" id="cAddress"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="cEmail"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('customerModal')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCustomer()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Customer detail modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h3 id="detailTitle">Fiche client</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
+    </div>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/app.js"></script>
+<script>
+DB.init(); Auth.requireAuth(); applyTheme();
+document.getElementById('sidebarMount').outerHTML = renderSidebar('customers');
+document.getElementById('topbarMount').outerHTML = renderTopbar('Clients');
+
+function renderTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let customers = DB.getCustomers();
+  if (q) customers = customers.filter(c=>(c.name+c.phone||'').toLowerCase().includes(q));
+
+  const sales = DB.getSales().filter(s=>s.status!=='cancelled');
+  const totals = {};
+  sales.forEach(s=>{ if(s.customerId) totals[s.customerId]=(totals[s.customerId]||0)+s.total; });
+
+  document.getElementById('customerBody').innerHTML = customers.length===0
+    ? '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">Aucun client</td></tr>'
+    : customers.map(c=>`<tr>
+        <td><strong>${c.name}</strong></td>
+        <td>${c.phone||'-'}</td>
+        <td>${c.address||'-'}</td>
+        <td>${fmt(totals[c.id]||0)}</td>
+        <td>${c.credit>0?`<span class="badge badge-warning">${fmt(c.credit)}</span>`:'<span class="badge badge-success">0</span>'}</td>
+        <td>${fmtDate(c.dateAdded)}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="showDetail(${c.id})">👁️</button>
+          <button class="btn btn-outline btn-sm btn-icon" onclick="editCustomer(${c.id})">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteCustomer(${c.id})">🗑️</button>
+        </td>
+      </tr>`).join('');
+}
+
+function newCustomer() {
+  document.getElementById('customerModalTitle').textContent='Nouveau client';
+  document.getElementById('editCustomerId').value='';
+  ['cName','cPhone','cAddress','cEmail'].forEach(i=>document.getElementById(i).value='');
+  openModal('customerModal');
+}
+
+function editCustomer(id) {
+  const c=DB.getCustomerById(id); if(!c) return;
+  document.getElementById('customerModalTitle').textContent='Modifier client';
+  document.getElementById('editCustomerId').value=c.id;
+  document.getElementById('cName').value=c.name;
+  document.getElementById('cPhone').value=c.phone||'';
+  document.getElementById('cAddress').value=c.address||'';
+  document.getElementById('cEmail').value=c.email||'';
+  openModal('customerModal');
+}
+
+function saveCustomer() {
+  const id=document.getElementById('editCustomerId').value;
+  const name=document.getElementById('cName').value.trim();
+  if(!name){toast('Nom obligatoire','error');return;}
+  const data={name,phone:document.getElementById('cPhone').value.trim(),
+    address:document.getElementById('cAddress').value.trim(),
+    email:document.getElementById('cEmail').value.trim()};
+  if(id){DB.updateCustomer(Number(id),data);toast('Client modifié');}
+  else{DB.addCustomer(data);toast('Client ajouté');}
+  closeModal('customerModal');renderTable();
+}
+
+function deleteCustomer(id) {
+  confirmDelete('Supprimer ce client ?',()=>{DB.deleteCustomer(id);toast('Supprimé','warn');renderTable();});
+}
+
+function showDetail(id) {
+  const c=DB.getCustomerById(id); if(!c) return;
+  const sales=DB.getSales().filter(s=>s.customerId===id&&s.status!=='cancelled');
+  const total=sales.reduce((a,s)=>a+s.total,0);
+  document.getElementById('detailTitle').textContent='Fiche — '+c.name;
+  document.getElementById('detailContent').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div><strong>Nom:</strong> ${c.name}</div>
+      <div><strong>Téléphone:</strong> ${c.phone||'-'}</div>
+      <div><strong>Adresse:</strong> ${c.address||'-'}</div>
+      <div><strong>Email:</strong> ${c.email||'-'}</div>
+      <div><strong>Total acheté:</strong> <span style="color:var(--primary);font-weight:700">${fmt(total)}</span></div>
+      <div><strong>Crédit:</strong> <span style="color:${c.credit>0?'var(--warning)':'var(--success)'};">${fmt(c.credit||0)}</span></div>
+    </div>
+    <div style="font-weight:700;margin-bottom:8px">Historique des achats (${sales.length})</div>
+    ${sales.length===0?'<div style="color:var(--text-muted)">Aucun achat</div>'
+      :`<table><thead><tr><th>N°</th><th>Date</th><th>Total</th><th>Paiement</th></tr></thead>
+      <tbody>${sales.slice().reverse().map(s=>`<tr><td>${s.number}</td><td>${fmtDateTime(s.date)}</td><td>${fmt(s.total)}</td><td>${s.paymentMode}</td></tr>`).join('')}
+      </tbody></table>`}
+    ${c.credit>0?`<div style="margin-top:12px">
+      <label style="font-size:12px;font-weight:700">Enregistrer un paiement de crédit</label>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <input type="number" id="creditPay" placeholder="Montant" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+        <button class="btn btn-primary" onclick="payCredit(${c.id})">Payer</button>
+      </div>
+    </div>`:''}`;
+  openModal('detailModal');
+}
+
+function payCredit(customerId) {
+  const c=DB.getCustomerById(customerId); if(!c) return;
+  const amount=Number(document.getElementById('creditPay').value)||0;
+  if(amount<=0){toast('Montant invalide','error');return;}
+  const newCredit=Math.max(0,(c.credit||0)-amount);
+  DB.updateCustomer(customerId,{credit:newCredit});
+  const cash=DB.getCash(); cash.balance+=amount;
+  cash.entries.push({type:'in',amount,date:new Date().toISOString(),note:'Paiement crédit — '+c.name});
+  DB.set(DB.KEYS.cash,cash);
+  toast('Paiement enregistré');
+  closeModal('detailModal');
+  renderTable();
+}
+
+['customerModal','detailModal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',e=>{if(e.target===document.getElementById(id))closeModal(id);});
+});
+renderTable();
+</script>
+</body>
+</html>

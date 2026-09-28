@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Achats</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
+    <div id="topbarMount"></div>
+    <div class="content-area">
+      <div class="page-header">
+        <h2>📥 Achats</h2>
+        <button class="btn btn-primary" onclick="openModal('purchaseModal')">➕ Nouvel achat</button>
+      </div>
+      <div class="table-wrapper">
+        <table><thead><tr><th>N°</th><th>Date</th><th>Fournisseur</th><th>Articles</th><th>Total</th><th>Actions</th></tr></thead>
+        <tbody id="purchaseBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="purchaseModal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h3>Nouvel achat</h3>
+      <button class="modal-close" onclick="closeModal('purchaseModal')">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Fournisseur</label>
+        <select id="pSupplier">
+          <option value="">— Choisir —</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Date</label><input type="date" id="pDate"></div>
+    </div>
+    <div style="font-weight:700;margin-bottom:8px;font-size:13px">Articles</div>
+    <div id="purchaseItems"></div>
+    <button class="btn btn-outline btn-sm" onclick="addPurchaseItem()" style="margin-bottom:12px">➕ Ajouter article</button>
+    <div style="text-align:right;font-size:16px;font-weight:700">Total: <span id="purchaseTotal">0 FCFA</span></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('purchaseModal')">Annuler</button>
+      <button class="btn btn-primary" onclick="savePurchase()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/app.js"></script>
+<script>
+DB.init(); Auth.requireAuth(); applyTheme();
+document.getElementById('sidebarMount').outerHTML = renderSidebar('purchases');
+document.getElementById('topbarMount').outerHTML = renderTopbar('Achats');
+
+let pItems = [];
+
+function initSupplierSelect() {
+  document.getElementById('pSupplier').innerHTML = '<option value="">— Choisir —</option>' +
+    DB.getSuppliers().map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+function addPurchaseItem() {
+  const idx = pItems.length;
+  pItems.push({ productId:'', qty:1, price:0 });
+  renderPurchaseItems();
+}
+
+function renderPurchaseItems() {
+  const products = DB.getProducts();
+  const opts = products.map(p=>`<option value="${p.id}">${p.name} (${fmt(p.purchasePrice)})</option>`).join('');
+  document.getElementById('purchaseItems').innerHTML = pItems.map((item,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">
+      <div style="flex:2">
+        <label style="font-size:11px;color:var(--text-muted)">Produit</label>
+        <select onchange="updatePItem(${i},'productId',this.value)" style="width:100%;padding:8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:13px">
+          <option value="">— Choisir —</option>${opts}
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-muted)">Qté</label>
+        <input type="number" value="${item.qty}" min="1" onchange="updatePItem(${i},'qty',this.value)"
+          style="width:100%;padding:8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--text)">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-muted)">Prix unitaire</label>
+        <input type="number" value="${item.price}" min="0" onchange="updatePItem(${i},'price',this.value)"
+          style="width:100%;padding:8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--text)">
+      </div>
+      <button onclick="removePItem(${i})" style="background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:8px">✕</button>
+    </div>`).join('');
+  updatePurchaseTotal();
+}
+
+function updatePItem(i, field, val) {
+  pItems[i][field] = field==='productId' ? val : Number(val);
+  if (field==='productId') {
+    const p = DB.getProductById(Number(val));
+    if (p) pItems[i].price = p.purchasePrice;
+    renderPurchaseItems();
+  }
+  updatePurchaseTotal();
+}
+
+function removePItem(i) { pItems.splice(i,1); renderPurchaseItems(); }
+
+function updatePurchaseTotal() {
+  const total = pItems.reduce((a,i)=>a+i.qty*i.price,0);
+  document.getElementById('purchaseTotal').textContent = fmt(total);
+}
+
+function savePurchase() {
+  if (pItems.length===0 || pItems.some(i=>!i.productId)) { toast('Complétez tous les articles','error'); return; }
+  const supplierId = document.getElementById('pSupplier').value;
+  const supplier = DB.getSuppliers().find(s=>s.id==supplierId);
+  const total = pItems.reduce((a,i)=>a+i.qty*i.price,0);
+  const purchase = {
+    supplierId: Number(supplierId)||null,
+    supplierName: supplier?.name||'—',
+    items: pItems.map(i=>({...i, productId:Number(i.productId)})),
+    total,
+    date: document.getElementById('pDate').value || new Date().toISOString(),
+  };
+  DB.addPurchase(purchase);
+  DB.log('Achat','Total: '+fmt(total));
+  toast('Achat enregistré, stock mis à jour !');
+  closeModal('purchaseModal');
+  pItems = [];
+  renderTable();
+}
+
+function renderTable() {
+  const purchases = DB.getPurchases().slice().reverse();
+  document.getElementById('purchaseBody').innerHTML = purchases.length===0
+    ? '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">Aucun achat</td></tr>'
+    : purchases.map(p=>`<tr>
+        <td><code>${p.number}</code></td>
+        <td>${fmtDate(p.date)}</td>
+        <td>${p.supplierName||'-'}</td>
+        <td>${p.items?.length||0} article(s)</td>
+        <td><strong>${fmt(p.total)}</strong></td>
+        <td><button class="btn btn-outline btn-sm" onclick="viewPurchase('${p.id}')">👁️</button></td>
+      </tr>`).join('');
+}
+
+function viewPurchase(id) {
+  const p = DB.getPurchases().find(x=>x.id==id); if(!p) return;
+  alert(`Achat ${p.number}\nFournisseur: ${p.supplierName}\nTotal: ${fmt(p.total)}\n\nArticles:\n${p.items.map(i=>{const pr=DB.getProductById(i.productId);return `- ${pr?.name||i.productId}: ${i.qty} × ${fmt(i.price)} = ${fmt(i.qty*i.price)}`;}).join('\n')}`);
+}
+
+document.getElementById('purchaseModal').addEventListener('click',e=>{if(e.target===document.getElementById('purchaseModal'))closeModal('purchaseModal');});
+
+// Init
+document.querySelector('button[onclick="openModal(\'purchaseModal\')"]').addEventListener('click',()=>{
+  pItems=[];
+  document.getElementById('pDate').value=new Date().toISOString().slice(0,10);
+  initSupplierSelect();
+  renderPurchaseItems();
+});
+
+initSupplierSelect();
+renderTable();
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rapports</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
+    <div id="topbarMount"></div>
+    <div class="content-area">
+      <div class="page-header">
+        <h2>📈 Rapports</h2>
+        <div style="display:flex;gap:8px">
+          <select id="reportPeriod" onchange="renderReports()" style="padding:8px 12px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:13px">
+            <option value="today">Aujourd'hui</option>
+            <option value="week">Cette semaine</option>
+            <option value="month" selected>Ce mois</option>
+            <option value="year">Cette année</option>
+            <option value="all">Tout</option>
+          </select>
+          <button class="btn btn-outline" onclick="exportBackup()">💾 Sauvegarde</button>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="stat-grid" id="reportStats"></div>
+
+      <!-- Charts row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)">
+          <div style="font-weight:700;font-size:13px;margin-bottom:12px">📊 CA par jour (30 derniers jours)</div>
+          <div id="chartRevenue"></div>
+        </div>
+        <div style="background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)">
+          <div style="font-weight:700;font-size:13px;margin-bottom:12px">🏆 Top 5 produits</div>
+          <div id="topProdsReport"></div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:12px">
+        <button class="btn btn-primary btn-sm active-tab" id="tab-sales" onclick="switchTab('sales')">Ventes</button>
+        <button class="btn btn-outline btn-sm" id="tab-stock" onclick="switchTab('stock')">Stock</button>
+        <button class="btn btn-outline btn-sm" id="tab-expenses" onclick="switchTab('expenses')">Dépenses</button>
+        <button class="btn btn-outline btn-sm" id="tab-log" onclick="switchTab('log')">Journal</button>
+      </div>
+
+      <div id="tabContent"></div>
+    </div>
+  </div>
+</div>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/app.js"></script>
+<script>
+DB.init(); Auth.requireAuth(); applyTheme();
+document.getElementById('sidebarMount').outerHTML = renderSidebar('reports');
+document.getElementById('topbarMount').outerHTML = renderTopbar('Rapports');
+
+let currentTab = 'sales';
+
+function getDateRange() {
+  const period = document.getElementById('reportPeriod').value;
+  const now = new Date();
+  let from = new Date(0);
+  if (period==='today') { from = new Date(now.toDateString()); }
+  else if (period==='week') { from = new Date(now); from.setDate(from.getDate()-7); }
+  else if (period==='month') { from = new Date(now.getFullYear(), now.getMonth(), 1); }
+  else if (period==='year') { from = new Date(now.getFullYear(), 0, 1); }
+  return from;
+}
+
+function filterByDate(items, from) {
+  return items.filter(i => new Date(i.date) >= from);
+}
+
+function renderReports() {
+  const from = getDateRange();
+  const allSales = DB.getSales().filter(s=>s.status!=='cancelled');
+  const sales = filterByDate(allSales, from);
+  const expenses = filterByDate(DB.getExpenses(), from);
+
+  const revenue = sales.reduce((a,s)=>a+s.total,0);
+  const cost = sales.reduce((a,s)=>{
+    return a + (s.items||[]).reduce((b,i)=>{const p=DB.getProductById(i.productId);return b+(p?.purchasePrice||0)*i.qty;},0);
+  },0);
+  const profit = revenue - cost;
+  const expTotal = expenses.reduce((a,e)=>a+e.amount,0);
+
+  document.getElementById('reportStats').innerHTML = `
+    <div class="stat-card accent"><div class="stat-label">Chiffre d'affaires</div><div class="stat-value">${fmt(revenue)}</div><div class="stat-icon">💰</div></div>
+    <div class="stat-card success"><div class="stat-label">Bénéfice brut</div><div class="stat-value">${fmt(profit)}</div><div class="stat-icon">📈</div></div>
+    <div class="stat-card danger"><div class="stat-label">Dépenses</div><div class="stat-value">${fmt(expTotal)}</div><div class="stat-icon">📤</div></div>
+    <div class="stat-card info"><div class="stat-label">Bénéfice net</div><div class="stat-value">${fmt(profit-expTotal)}</div><div class="stat-icon">🏆</div></div>
+    <div class="stat-card"><div class="stat-label">Nb ventes</div><div class="stat-value">${sales.length}</div><div class="stat-icon">🛒</div></div>
+    <div class="stat-card"><div class="stat-label">Panier moyen</div><div class="stat-value">${fmt(sales.length?revenue/sales.length:0)}</div><div class="stat-icon">🧮</div></div>
+  `;
+
+  // 30-day chart
+  const days30 = [], labels30 = [];
+  for(let i=29;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const ds=d.toDateString();
+    days30.push(allSales.filter(s=>new Date(s.date).toDateString()===ds).reduce((a,s)=>a+s.total,0));
+    labels30.push(d.getDate()+'/'+(d.getMonth()+1));
+  }
+  renderBarChart(document.getElementById('chartRevenue'),days30,labels30);
+
+  // Top products
+  const prodMap={};
+  sales.forEach(s=>(s.items||[]).forEach(i=>{prodMap[i.productId]=(prodMap[i.productId]||0)+i.qty;}));
+  const top=Object.entries(prodMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('topProdsReport').innerHTML=top.length===0
+    ? '<div style="color:var(--text-muted)">Aucune vente</div>'
+    : top.map(([pid,qty])=>{
+        const p=DB.getProductById(Number(pid));
+        const max=top[0][1];
+        return `<div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
+            <span>${p?.name||'?'}</span><span style="color:var(--primary);font-weight:600">${qty} unités</span>
+          </div>
+          <div style="background:var(--border);border-radius:3px;height:6px">
+            <div style="background:var(--primary);height:6px;border-radius:3px;width:${Math.round(qty/max*100)}%"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+  switchTab(currentTab);
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  ['sales','stock','expenses','log'].forEach(t=>{
+    document.getElementById('tab-'+t).className = t===tab ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm';
+  });
+  const from = getDateRange();
+
+  if (tab==='sales') {
+    const sales = filterByDate(DB.getSales().filter(s=>s.status!=='cancelled'), from).slice().reverse();
+    document.getElementById('tabContent').innerHTML = `
+      <div class="table-wrapper">
+        <table><thead><tr><th>N°</th><th>Date</th><th>Client</th><th>Articles</th><th>Total</th><th>Paiement</th></tr></thead>
+        <tbody>${sales.length===0
+          ? '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px">Aucune vente</td></tr>'
+          : sales.map(s=>`<tr>
+              <td><code>${s.number}</code></td>
+              <td>${fmtDateTime(s.date)}</td>
+              <td>${s.customerName||'Comptoir'}</td>
+              <td>${s.items?.length||0}</td>
+              <td><strong>${fmt(s.total)}</strong></td>
+              <td>${s.paymentMode}</td>
+            </tr>`).join('')}
+        </tbody></table>
+      </div>`;
+  } else if (tab==='stock') {
+    const products = DB.getProducts();
+    document.getElementById('tabContent').innerHTML = `
+      <div class="table-wrapper">
+        <table><thead><tr><th>Code</th><th>Produit</th><th>Stock</th><th>Valeur (achat)</th><th>État</th></tr></thead>
+        <tbody>${products.map(p=>`<tr>
+          <td><code>${p.code}</code></td>
+          <td>${p.name}</td>
+          <td><strong>${p.stock||0}</strong></td>
+          <td>${fmt((p.stock||0)*(p.purchasePrice||0))}</td>
+          <td>${p.stock===0?'<span class="badge badge-danger">Épuisé</span>':p.stock<=(p.alertThreshold||3)?'<span class="badge badge-warning">Faible</span>':'<span class="badge badge-success">OK</span>'}</td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+      <div style="margin-top:10px;text-align:right;font-size:13px;color:var(--text-muted)">
+        Valeur totale du stock: <strong style="color:var(--primary)">${fmt(products.reduce((a,p)=>a+(p.stock||0)*(p.purchasePrice||0),0))}</strong>
+      </div>`;
+  } else if (tab==='expenses') {
+    const expenses = filterByDate(DB.getExpenses(), from).slice().reverse();
+    document.getElementById('tabContent').innerHTML = `
+      <div class="table-wrapper">
+        <table><thead><tr><th>Date</th><th>Catégorie</th><th>Description</th><th>Montant</th></tr></thead>
+        <tbody>${expenses.length===0
+          ? '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">Aucune dépense</td></tr>'
+          : expenses.map(e=>`<tr>
+              <td>${fmtDate(e.date)}</td>
+              <td><span class="badge badge-warning">${e.category}</span></td>
+              <td>${e.description||'-'}</td>
+              <td><span style="color:var(--danger);font-weight:700">-${fmt(e.amount)}</span></td>
+            </tr>`).join('')}
+        </tbody></table>
+      </div>`;
+  } else if (tab==='log') {
+    const logs = DB.getLogs().slice(0,50);
+    document.getElementById('tabContent').innerHTML = `
+      <div class="table-wrapper">
+        <table><thead><tr><th>Date/Heure</th><th>Utilisateur</th><th>Action</th><th>Détail</th></tr></thead>
+        <tbody>${logs.map(l=>`<tr>
+          <td>${fmtDateTime(l.date)}</td>
+          <td>${l.user}</td>
+          <td><span class="badge badge-info">${l.action}</span></td>
+          <td>${l.detail||''}</td>
+        </tr>`).join('')}</tbody></table>
+      </div>`;
+  }
+}
+
+renderReports();
+</script>
+</body>
+</html>

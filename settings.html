@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paramètres</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
+    <div id="topbarMount"></div>
+    <div class="content-area">
+      <div class="page-header">
+        <h2>⚙️ Paramètres</h2>
+        <button class="btn btn-primary" onclick="saveSettings()">💾 Enregistrer</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <!-- Boutique -->
+        <div style="background:var(--surface);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)">
+          <div style="font-weight:700;font-size:14px;margin-bottom:14px;color:var(--primary)">🏪 Informations boutique</div>
+          <div class="form-group"><label>Nom de la boutique</label><input type="text" id="sShopName"></div>
+          <div class="form-group"><label>Téléphone</label><input type="text" id="sPhone"></div>
+          <div class="form-group"><label>Adresse</label><input type="text" id="sAddress"></div>
+          <div class="form-group"><label>Devise</label>
+            <select id="sCurrency">
+              <option value="FCFA">FCFA (Franc CFA)</option>
+              <option value="XOF">XOF</option>
+              <option value="EUR">EUR (Euro)</option>
+              <option value="USD">USD (Dollar)</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Informations légales / Pied de page facture</label><textarea id="sLegal" rows="3"></textarea></div>
+        </div>
+
+        <!-- Numérotation -->
+        <div style="background:var(--surface);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)">
+          <div style="font-weight:700;font-size:14px;margin-bottom:14px;color:var(--primary)">🧾 Numérotation des documents</div>
+          <div class="form-group"><label>Préfixe facture</label><input type="text" id="sInvoicePrefix" placeholder="FAC"></div>
+          <div class="form-group"><label>Préfixe reçu</label><input type="text" id="sReceiptPrefix" placeholder="REC"></div>
+          <div style="background:var(--primary-light);border-radius:6px;padding:10px;font-size:12px;color:var(--primary)">
+            Exemple: <strong>FAC-2026-00001</strong> — numérotation automatique et continue.
+          </div>
+
+          <div style="font-weight:700;font-size:14px;margin-top:20px;margin-bottom:14px;color:var(--primary)">🔐 Sécurité</div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:10px">
+            <input type="checkbox" id="sLoginRequired">
+            <span>Connexion obligatoire au démarrage</span>
+          </label>
+
+          <div style="font-weight:700;font-size:14px;margin-top:20px;margin-bottom:14px;color:var(--primary)">✨ Animation de démarrage</div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:10px">
+            <input type="checkbox" id="sAnimationEnabled">
+            <span>Activer l'animation au démarrage</span>
+          </label>
+          <div class="form-group">
+            <label>Durée de l'animation</label>
+            <select id="sAnimationDuration" onchange="toggleCustomAnimation()">
+              <option value="15">15 secondes — TECH-ACCESS 7 s / MARHABA 8 s</option>
+              <option value="30">30 secondes — TECH-ACCESS 17 s / MARHABA 13 s</option>
+              <option value="60">60 secondes — TECH-ACCESS 30 s / MARHABA 30 s</option>
+              <option value="custom">Personnalisée — moitié / moitié</option>
+            </select>
+          </div>
+          <div class="form-group" id="customAnimationGroup" style="display:none">
+            <label>Durée personnalisée (secondes)</label>
+            <input type="number" id="sAnimationCustomDuration" min="1" step="1" placeholder="20">
+            <small style="display:block;margin-top:5px;color:var(--text-muted)">Exemple : 20 s → TECH-ACCESS 10 s + MARHABA ABK TECHNOLOGY 10 s.</small>
+          </div>
+
+          <div style="font-weight:700;font-size:14px;margin-top:20px;margin-bottom:14px;color:var(--primary)">🎨 Apparence</div>
+          <div class="form-group"><label>Thème</label>
+            <select id="sTheme" onchange="previewTheme()">
+              <option value="light">☀️ Clair</option>
+              <option value="dark">🌙 Sombre</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categories -->
+      <div style="background:var(--surface);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:14px;color:var(--primary)">🗂️ Catégories de produits</div>
+          <button class="btn btn-primary btn-sm" onclick="addCategory()">➕ Ajouter</button>
+        </div>
+        <div id="categoriesList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
+
+      <!-- Backup -->
+      <div style="background:var(--surface);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-top:16px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:14px;color:var(--primary)">💾 Sauvegarde & Restauration</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="exportBackup()">⬇️ Exporter toutes les données</button>
+          <label class="btn btn-outline" style="cursor:pointer">
+            ⬆️ Importer une sauvegarde
+            <input type="file" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
+          </label>
+          <button class="btn btn-danger" onclick="resetData()">🔄 Réinitialiser (ATTENTION)</button>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
+          Les données sont stockées localement dans votre navigateur. Exportez régulièrement pour éviter toute perte.
+        </div>
+      </div>
+
+      <!-- About -->
+      <div style="background:var(--surface);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-top:16px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--primary)">ℹ️ À propos</div>
+        <div style="font-size:13px;color:var(--text-muted)">
+          <div>Application de gestion de boutique d'accessoires téléphoniques</div>
+          <div>Version 1.0 — Fonctionne hors connexion</div>
+          <div style="margin-top:6px">Compte administrateur par défaut: <code>admin</code> / <code>admin123</code> (à changer)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/app.js"></script>
+<script>
+DB.init(); Auth.requireAuth(); applyTheme();
+document.getElementById('sidebarMount').outerHTML = renderSidebar('settings');
+document.getElementById('topbarMount').outerHTML = renderTopbar('Paramètres');
+
+function loadSettings() {
+  const s = DB.getSettings();
+  document.getElementById('sShopName').value = s.shopName||'';
+  document.getElementById('sPhone').value = s.phone||'';
+  document.getElementById('sAddress').value = s.address||'';
+  document.getElementById('sCurrency').value = s.currency||'FCFA';
+  document.getElementById('sLegal').value = s.legal||'';
+  document.getElementById('sInvoicePrefix').value = s.invoicePrefix||'FAC';
+  document.getElementById('sReceiptPrefix').value = s.receiptPrefix||'REC';
+  document.getElementById('sLoginRequired').checked = s.loginRequired!==false;
+  document.getElementById('sAnimationEnabled').checked = s.startupAnimationEnabled !== false;
+  document.getElementById('sAnimationDuration').value = String(s.startupAnimationDuration || 15);
+  document.getElementById('sAnimationCustomDuration').value = s.startupAnimationCustomDuration || 20;
+  toggleCustomAnimation();
+  document.getElementById('sTheme').value = s.theme||'light';
+  renderCategories();
+}
+
+function saveSettings() {
+  const s = DB.getSettings();
+  const updated = {
+    ...s,
+    shopName: document.getElementById('sShopName').value.trim(),
+    phone: document.getElementById('sPhone').value.trim(),
+    address: document.getElementById('sAddress').value.trim(),
+    currency: document.getElementById('sCurrency').value,
+    legal: document.getElementById('sLegal').value.trim(),
+    invoicePrefix: document.getElementById('sInvoicePrefix').value.trim()||'FAC',
+    receiptPrefix: document.getElementById('sReceiptPrefix').value.trim()||'REC',
+    loginRequired: document.getElementById('sLoginRequired').checked,
+    startupAnimationEnabled: document.getElementById('sAnimationEnabled').checked,
+    startupAnimationDuration: document.getElementById('sAnimationDuration').value === 'custom' ? 'custom' : Number(document.getElementById('sAnimationDuration').value),
+    startupAnimationCustomDuration: Math.max(1, Number(document.getElementById('sAnimationCustomDuration').value || 20)),
+    theme: document.getElementById('sTheme').value,
+  };
+  DB.saveSettings(updated);
+  applyTheme();
+  DB.log('Paramètres','Paramètres mis à jour');
+  toast('Paramètres enregistrés');
+}
+
+function toggleCustomAnimation() {
+  const custom = document.getElementById('sAnimationDuration').value === 'custom';
+  document.getElementById('customAnimationGroup').style.display = custom ? 'block' : 'none';
+}
+
+function previewTheme() {
+  document.documentElement.setAttribute('data-theme', document.getElementById('sTheme').value);
+}
+
+function renderCategories() {
+  const cats = DB.getCategories();
+  document.getElementById('categoriesList').innerHTML = cats.map(c=>`
+    <div style="display:flex;align-items:center;gap:6px;background:${c.active?'var(--primary-light)':'var(--bg)'};border-radius:20px;padding:4px 10px 4px 12px;border:1px solid ${c.active?'var(--primary)':'var(--border)'}">
+      <span style="font-size:13px;color:${c.active?'var(--primary)':'var(--text-muted)'}">${c.name}</span>
+      <button onclick="toggleCategory(${c.id})" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:.6" title="${c.active?'Désactiver':'Activer'}">${c.active?'✓':'○'}</button>
+      <button onclick="deleteCategory(${c.id})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:12px" title="Supprimer">✕</button>
+    </div>`).join('');
+}
+
+function addCategory() {
+  const name = prompt('Nom de la nouvelle catégorie:');
+  if (name?.trim()) {
+    DB.addCategory({name:name.trim(),active:true});
+    renderCategories();
+    toast('Catégorie ajoutée');
+  }
+}
+function toggleCategory(id) {
+  const c = DB.getCategories().find(x=>x.id===id); if(!c) return;
+  DB.updateCategory(id,{active:!c.active});
+  renderCategories();
+}
+function deleteCategory(id) {
+  const inUse = DB.getProducts().some(p=>p.categoryId===id);
+  if(inUse){toast('Catégorie utilisée par des produits','error');return;}
+  confirmDelete('Supprimer cette catégorie ?',()=>{DB.deleteCategory(id);renderCategories();toast('Supprimée','warn');});
+}
+
+function resetData() {
+  if(confirm('⚠️ ATTENTION — Cette action supprime TOUTES les données (produits, ventes, clients, etc.).\n\nFaites une sauvegarde avant. Continuer ?')) {
+    if(confirm('Êtes-vous vraiment sûr ? Cette action est IRRÉVERSIBLE.')) {
+      Object.values(DB.KEYS).forEach(k=>localStorage.removeItem(k));
+      DB.init();
+      toast('Données réinitialisées');
+      setTimeout(()=>location.reload(),1000);
+    }
+  }
+}
+
+loadSettings();
+</script>
+</body>
+</html>

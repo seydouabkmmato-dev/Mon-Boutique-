@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestion Boutique</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body class="login-body">
+  <div id="startupSplash" class="startup-splash" aria-hidden="true">
+    <div class="startup-card">
+      <div class="startup-logo-wrap">
+        <img id="startupLogo" class="startup-logo" src="assets/tech-access.png" alt="TECH-ACCESS">
+      </div>
+      <div id="startupCompany" class="startup-company">TECH-ACCESS</div>
+      <div class="startup-progress"><span id="startupProgress"></span></div>
+      <div id="startupText" class="startup-text">Initialisation...</div>
+    </div>
+  </div>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <img class="login-brand-logo" id="logoDisplay" src="assets/tech-access.png" alt="TECH-ACCESS">
+        <h1 id="shopNameDisplay">Ma Boutique</h1>
+        <p class="login-subtitle">Espace de gestion</p>
+      </div>
+      <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="username">Nom d'utilisateur</label>
+          <input type="text" id="username" placeholder="Entrez votre nom" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <div class="password-wrapper">
+            <input type="password" id="password" placeholder="Entrez votre mot de passe" required>
+            <button type="button" class="toggle-pw" onclick="togglePassword()">👁</button>
+          </div>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="rememberMe">
+          <label for="rememberMe">Se souvenir de moi</label>
+        </div>
+        <button type="submit" class="btn-login">SE CONNECTER</button>
+        <div id="loginError" class="error-msg" style="display:none">Identifiants incorrects.</div>
+      </form>
+    </div>
+  </div>
+  <script src="js/db.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      DB.init();
+      const settings = DB.getSettings();
+      if (settings.shopName) document.getElementById('shopNameDisplay').textContent = settings.shopName;
+      runStartupAnimation(settings).then(() => {
+        if (!settings.loginRequired) window.location.href = 'pages/dashboard.html';
+        else document.getElementById('username').focus();
+      });
+      const remembered = localStorage.getItem('remembered_user');
+      if (remembered) document.getElementById('username').value = remembered;
+    });
+
+    function getAnimationDurations(settings) {
+      const mode = Number(settings.startupAnimationDuration || 15);
+      if (mode === 15) return [7, 8];
+      if (mode === 30) return [17, 13];
+      if (mode === 60) return [30, 30];
+      const custom = Math.max(1, Number(settings.startupAnimationCustomDuration || 20));
+      return [custom / 2, custom / 2];
+    }
+
+    function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    async function runStartupAnimation(settings) {
+      const splash = document.getElementById('startupSplash');
+      if (!settings.startupAnimationEnabled) { splash.remove(); return; }
+      const logo = document.getElementById('startupLogo');
+      const company = document.getElementById('startupCompany');
+      const text = document.getElementById('startupText');
+      const progress = document.getElementById('startupProgress');
+      const [first, second] = getAnimationDurations(settings);
+      splash.classList.add('show');
+      const total = first + second;
+      async function show(src, name, seconds, elapsed) {
+        logo.src = src; company.textContent = name; text.textContent = name;
+        logo.classList.remove('startup-logo-enter'); void logo.offsetWidth; logo.classList.add('startup-logo-enter');
+        const start = performance.now();
+        while (performance.now() - start < seconds * 1000) {
+          const current = elapsed + (performance.now() - start) / 1000;
+          progress.style.width = Math.min(100, current / total * 100) + '%';
+          await new Promise(requestAnimationFrame);
+        }
+      }
+      await show('assets/tech-access.png', 'TECH-ACCESS', first, 0);
+      await show('assets/marhaba-abk-technology.png', 'MARHABA ABK TECHNOLOGY', second, first);
+      progress.style.width = '100%';
+      await wait(150);
+      splash.classList.add('hide');
+      await wait(300);
+      splash.remove();
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+      const user = Auth.login(u, p);
+      if (user) {
+        if (document.getElementById('rememberMe').checked) localStorage.setItem('remembered_user', u);
+        window.location.href = 'pages/dashboard.html';
+      } else {
+        document.getElementById('loginError').style.display = 'block';
+      }
+    }
+    function togglePassword() {
+      const pw = document.getElementById('password');
+      pw.type = pw.type === 'password' ? 'text' : 'password';
+    }
+  </script>
+</body>
+</html>

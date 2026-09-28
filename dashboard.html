@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de bord</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
+    <div id="topbarMount"></div>
+    <div class="content-area">
+      <div id="alertsSection" class="alert-list"></div>
+      <div class="stat-grid" id="statsGrid"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px">
+        <div style="background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px">📊 Ventes des 7 derniers jours</div>
+          <div id="chartWeek"></div>
+        </div>
+        <div style="background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px">🏆 Produits les plus vendus</div>
+          <div id="topProducts"></div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-top:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">🕐 Dernières ventes</div>
+        <div id="recentSales"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/app.js"></script>
+<script>
+DB.init(); Auth.requireAuth(); applyTheme();
+document.getElementById('sidebarMount').outerHTML = renderSidebar('dashboard');
+document.getElementById('topbarMount').outerHTML = renderTopbar('Tableau de bord');
+
+function render() {
+  const stats = DB.getStats();
+  const notifs = DB.getNotifications();
+
+  // Alerts
+  const alertsEl = document.getElementById('alertsSection');
+  alertsEl.innerHTML = notifs.slice(0,5).map(n =>
+    `<div class="alert-item ${n.type}">${n.type==='danger'?'🔴':n.type==='warning'?'⚠️':'ℹ️'} ${n.msg}</div>`
+  ).join('');
+
+  // Stats
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card accent"><div class="stat-label">CA aujourd'hui</div><div class="stat-value">${fmt(stats.todayRevenue)}</div><div class="stat-icon">💰</div></div>
+    <div class="stat-card"><div class="stat-label">Ventes today</div><div class="stat-value">${stats.todaySalesCount}</div><div class="stat-icon">🛒</div></div>
+    <div class="stat-card success"><div class="stat-label">Bénéfice total</div><div class="stat-value">${fmt(stats.totalProfit)}</div><div class="stat-icon">📈</div></div>
+    <div class="stat-card info"><div class="stat-label">Solde caisse</div><div class="stat-value">${fmt(stats.cashBalance)}</div><div class="stat-icon">💵</div></div>
+    <div class="stat-card"><div class="stat-label">Produits</div><div class="stat-value">${stats.productCount}</div><div class="stat-icon">📦</div></div>
+    <div class="stat-card danger"><div class="stat-label">Stock faible</div><div class="stat-value">${stats.lowStock}</div><div class="stat-icon">⚠️</div></div>
+    <div class="stat-card danger"><div class="stat-label">Épuisés</div><div class="stat-value">${stats.outOfStock}</div><div class="stat-icon">🔴</div></div>
+    <div class="stat-card"><div class="stat-label">Clients</div><div class="stat-value">${stats.customerCount}</div><div class="stat-icon">👥</div></div>
+  `;
+
+  // Week chart
+  const days = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const now = new Date();
+  const weekData = Array(7).fill(0);
+  const weekLabels = [];
+  for (let i=6; i>=0; i--) {
+    const d = new Date(now); d.setDate(d.getDate()-i);
+    const ds = d.toDateString();
+    weekData[6-i] = DB.getSales().filter(s=>s.status!=='cancelled'&&new Date(s.date).toDateString()===ds).reduce((a,s)=>a+(s.total||0),0);
+    weekLabels[6-i] = days[d.getDay()===0?6:d.getDay()-1];
+  }
+  renderBarChart(document.getElementById('chartWeek'), weekData, weekLabels);
+
+  // Top products
+  const salesAll = DB.getSales().filter(s=>s.status!=='cancelled');
+  const prodMap = {};
+  salesAll.forEach(s => (s.items||[]).forEach(it => { prodMap[it.productId]=(prodMap[it.productId]||0)+it.qty; }));
+  const top = Object.entries(prodMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('topProducts').innerHTML = top.length === 0
+    ? '<div style="color:var(--text-muted);font-size:13px">Aucune vente enregistrée</div>'
+    : top.map(([pid,qty]) => {
+        const p = DB.getProductById(Number(pid));
+        const pct = top[0][1] > 0 ? Math.round((qty/top[0][1])*100) : 0;
+        return `<div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+            <span>${p?.name||'?'}</span><span style="color:var(--primary);font-weight:600">${qty} vendus</span>
+          </div>
+          <div style="background:var(--border);border-radius:3px;height:6px">
+            <div style="background:var(--primary);height:6px;border-radius:3px;width:${pct}%"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+  // Recent sales
+  const recent = DB.getSales().filter(s=>s.status!=='cancelled').slice(-8).reverse();
+  document.getElementById('recentSales').innerHTML = recent.length === 0
+    ? '<div style="color:var(--text-muted);font-size:13px">Aucune vente</div>'
+    : `<table><thead><tr><th>N°</th><th>Date</th><th>Client</th><th>Total</th><th>Paiement</th><th>Statut</th></tr></thead><tbody>
+      ${recent.map(s=>`<tr>
+        <td>${s.number||s.invoiceNumber||'-'}</td>
+        <td>${fmtDateTime(s.date)}</td>
+        <td>${s.customerName||'Client comptoir'}</td>
+        <td><strong>${fmt(s.total)}</strong></td>
+        <td>${s.paymentMode||'Espèces'}</td>
+        <td><span class="badge badge-success">Complété</span></td>
+      </tr>`).join('')}
+      </tbody></table>`;
+}
+render();
+</script>
+</body>
+</html>

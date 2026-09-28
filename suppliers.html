@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fournisseurs</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
+    <div id="topbarMount"></div>
+    <div class="content-area">
+      <div class="page-header">
+        <h2>🚚 Fournisseurs</h2>
+        <button class="btn btn-primary" onclick="newSupplier()">➕ Nouveau</button>
+      </div>
+      <div class="table-wrapper">
+        <table><thead><tr><th>Nom</th><th>Téléphone</th><th>Adresse</th><th>Contact</th><th>Total achats</th><th>Actions</th></tr></thead>
+        <tbody id="supplierBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="supplierModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="supplierModalTitle">Nouveau fournisseur</h3>
+      <button class="modal-close" onclick="closeModal('supplierModal')">✕</button>
+    </div>
+    <input type="hidden" id="editSupplierId">
+    <div class="form-row">
+      <div class="form-group"><label>Nom *</label><input type="text" id="sName"></div>
+      <div class="form-group"><label>Téléphone</label><input type="text" id="sPhone"></div>
+    </div>
+    <div class="form-group"><label>Adresse</label><input type="text" id="sAddress"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Email</label><input type="email" id="sEmail"></div>
+      <div class="form-group"><label>Personne à contacter</label><input type="text" id="sContact"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('supplierModal')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveSupplier()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/app.js"></script>
+<script>
+DB.init(); Auth.requireAuth(); applyTheme();
+document.getElementById('sidebarMount').outerHTML = renderSidebar('suppliers');
+document.getElementById('topbarMount').outerHTML = renderTopbar('Fournisseurs');
+
+function renderTable() {
+  const suppliers = DB.getSuppliers();
+  const purchases = DB.getPurchases();
+  const totals = {};
+  purchases.forEach(p => { if(p.supplierId) totals[p.supplierId]=(totals[p.supplierId]||0)+p.total; });
+  document.getElementById('supplierBody').innerHTML = suppliers.length===0
+    ? '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">Aucun fournisseur</td></tr>'
+    : suppliers.map(s=>`<tr>
+        <td><strong>${s.name}</strong></td>
+        <td>${s.phone||'-'}</td>
+        <td>${s.address||'-'}</td>
+        <td>${s.contact||'-'}</td>
+        <td>${fmt(totals[s.id]||0)}</td>
+        <td>
+          <button class="btn btn-outline btn-sm btn-icon" onclick="editSupplier(${s.id})">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteSupplier(${s.id})">🗑️</button>
+        </td>
+      </tr>`).join('');
+}
+
+function newSupplier() {
+  document.getElementById('supplierModalTitle').textContent='Nouveau fournisseur';
+  document.getElementById('editSupplierId').value='';
+  ['sName','sPhone','sAddress','sEmail','sContact'].forEach(i=>document.getElementById(i).value='');
+  openModal('supplierModal');
+}
+function editSupplier(id) {
+  const s=DB.getSuppliers().find(x=>x.id===id); if(!s) return;
+  document.getElementById('supplierModalTitle').textContent='Modifier fournisseur';
+  document.getElementById('editSupplierId').value=s.id;
+  document.getElementById('sName').value=s.name;
+  document.getElementById('sPhone').value=s.phone||'';
+  document.getElementById('sAddress').value=s.address||'';
+  document.getElementById('sEmail').value=s.email||'';
+  document.getElementById('sContact').value=s.contact||'';
+  openModal('supplierModal');
+}
+function saveSupplier() {
+  const id=document.getElementById('editSupplierId').value;
+  const name=document.getElementById('sName').value.trim();
+  if(!name){toast('Nom obligatoire','error');return;}
+  const data={name,phone:document.getElementById('sPhone').value.trim(),address:document.getElementById('sAddress').value.trim(),email:document.getElementById('sEmail').value.trim(),contact:document.getElementById('sContact').value.trim()};
+  if(id){DB.updateSupplier(Number(id),data);toast('Fournisseur modifié');}
+  else{DB.addSupplier(data);toast('Fournisseur ajouté');}
+  closeModal('supplierModal');renderTable();
+}
+function deleteSupplier(id) {
+  confirmDelete('Supprimer ce fournisseur ?',()=>{DB.deleteSupplier(id);toast('Supprimé','warn');renderTable();});
+}
+document.getElementById('supplierModal').addEventListener('click',e=>{if(e.target===document.getElementById('supplierModal'))closeModal('supplierModal');});
+renderTable();
+</script>
+</body>
+</html>

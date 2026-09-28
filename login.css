@@ -1,0 +1,35 @@
+.login-body { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1a6b3c 0%, #0d3d23 100%); }
+.login-container { width: 100%; max-width: 380px; padding: 20px; }
+.login-card { background: #fff; border-radius: 16px; padding: 36px 32px; box-shadow: 0 8px 40px rgba(0,0,0,.2); }
+.login-logo { text-align: center; margin-bottom: 28px; }
+.logo-placeholder { font-size: 52px; margin-bottom: 10px; }
+.login-logo h1 { font-size: 20px; font-weight: 700; color: #1a2e1a; }
+.login-subtitle { font-size: 13px; color: #888; margin-top: 4px; }
+.login-form .form-group { margin-bottom: 16px; }
+.login-form label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #555; }
+.login-form input { width: 100%; padding: 11px 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 14px; transition: border .15s; }
+.login-form input:focus { outline: none; border-color: #1a6b3c; }
+.password-wrapper { position: relative; }
+.password-wrapper input { padding-right: 44px; }
+.toggle-pw { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 16px; cursor: pointer; opacity: .5; }
+.form-check { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 13px; color: #666; }
+.btn-login { width: 100%; padding: 13px; background: #1a6b3c; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; letter-spacing: .5px; transition: background .15s; }
+.btn-login:hover { background: #145230; }
+.error-msg { color: #c0392b; font-size: 12px; text-align: center; margin-top: 10px; }
+
+
+/* Écran d'animation de démarrage */
+.startup-splash { position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:radial-gradient(circle at center,#07152d 0%,#02050b 65%,#000 100%); color:#fff; }
+.startup-splash.show { display:flex; }
+.startup-splash.hide { opacity:0; transition:opacity .3s ease; pointer-events:none; }
+.startup-card { width:min(92vw,520px); text-align:center; padding:32px 24px; }
+.startup-logo-wrap { width:min(62vw,300px); height:min(62vw,300px); margin:0 auto 20px; display:flex; align-items:center; justify-content:center; }
+.startup-logo { width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 0 22px rgba(0,150,255,.35)); }
+.startup-logo-enter { animation:startupLogoIn .65s ease both; }
+.startup-company { font-size:clamp(20px,5vw,34px); font-weight:900; letter-spacing:1px; margin-bottom:22px; }
+.startup-progress { width:100%; height:7px; border-radius:99px; background:rgba(255,255,255,.16); overflow:hidden; }
+.startup-progress span { display:block; width:0; height:100%; background:linear-gradient(90deg,#ffb300,#fff200,#008cff); border-radius:inherit; }
+.startup-text { margin-top:12px; font-size:13px; opacity:.75; }
+.login-brand-logo { display:block; width:150px; height:150px; object-fit:contain; margin:0 auto 10px; }
+@keyframes startupLogoIn { from{opacity:0;transform:scale(.86) rotate(-2deg)} to{opacity:1;transform:scale(1) rotate(0)} }
+@media (max-width:480px){ .startup-card{padding:20px 16px}.login-brand-logo{width:120px;height:120px} }

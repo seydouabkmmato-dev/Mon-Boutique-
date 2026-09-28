@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caisse</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-wrapper">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
+    <div id="topbarMount"></div>
+    <div class="content-area">
+      <div class="page-header">
+        <h2>💵 Caisse</h2>
+        <button class="btn btn-primary" onclick="openModal('expenseModal')">➕ Dépense</button>
+      </div>
+      <div class="stat-grid" id="cashStats" style="margin-bottom:20px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-weight:700;margin-bottom:10px;font-size:14px">📥 Entrées récentes</div>
+          <div class="table-wrapper">
+            <table><thead><tr><th>Date</th><th>Note</th><th>Montant</th></tr></thead>
+            <tbody id="entriesBody"></tbody></table>
+          </div>
+        </div>
+        <div>
+          <div style="font-weight:700;margin-bottom:10px;font-size:14px">📤 Dépenses récentes</div>
+          <div class="table-wrapper">
+            <table><thead><tr><th>Date</th><th>Catégorie</th><th>Description</th><th>Montant</th></tr></thead>
+            <tbody id="expensesBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="expenseModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Nouvelle dépense</h3>
+      <button class="modal-close" onclick="closeModal('expenseModal')">✕</button>
+    </div>
+    <div class="form-group"><label>Catégorie</label>
+      <select id="expCat">
+        <option>Transport</option><option>Électricité</option><option>Loyer</option>
+        <option>Internet</option><option>Salaire</option><option>Entretien</option><option>Autre</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Description</label><input type="text" id="expDesc"></div>
+    <div class="form-group"><label>Montant (FCFA) *</label><input type="number" id="expAmount" min="0"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('expenseModal')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveExpense()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/app.js"></script>
+<script>
+DB.init(); Auth.requireAuth(); applyTheme();
+document.getElementById('sidebarMount').outerHTML = renderSidebar('cash');
+document.getElementById('topbarMount').outerHTML = renderTopbar('Caisse');
+
+function render() {
+  const cash = DB.getCash();
+  const entries = cash.entries || [];
+  const ins = entries.filter(e=>e.type==='in').reduce((a,e)=>a+e.amount,0);
+  const outs = entries.filter(e=>e.type==='out').reduce((a,e)=>a+e.amount,0);
+
+  document.getElementById('cashStats').innerHTML = `
+    <div class="stat-card success"><div class="stat-label">Solde caisse</div><div class="stat-value">${fmt(cash.balance)}</div><div class="stat-icon">💵</div></div>
+    <div class="stat-card"><div class="stat-label">Total entrées</div><div class="stat-value">${fmt(ins)}</div><div class="stat-icon">📥</div></div>
+    <div class="stat-card danger"><div class="stat-label">Total sorties</div><div class="stat-value">${fmt(outs)}</div><div class="stat-icon">📤</div></div>
+    <div class="stat-card accent"><div class="stat-label">Opérations</div><div class="stat-value">${entries.length}</div><div class="stat-icon">🔢</div></div>
+  `;
+
+  const inEntries = entries.filter(e=>e.type==='in').slice(-20).reverse();
+  document.getElementById('entriesBody').innerHTML = inEntries.length===0
+    ? '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:20px">Aucune entrée</td></tr>'
+    : inEntries.map(e=>`<tr>
+        <td>${fmtDate(e.date)}</td>
+        <td>${e.note||e.ref||'-'}</td>
+        <td><span style="color:var(--success);font-weight:700">+${fmt(e.amount)}</span></td>
+      </tr>`).join('');
+
+  const expenses = DB.getExpenses().slice().reverse().slice(0,20);
+  document.getElementById('expensesBody').innerHTML = expenses.length===0
+    ? '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">Aucune dépense</td></tr>'
+    : expenses.map(e=>`<tr>
+        <td>${fmtDate(e.date)}</td>
+        <td><span class="badge badge-warning">${e.category||'-'}</span></td>
+        <td>${e.description||'-'}</td>
+        <td><span style="color:var(--danger);font-weight:700">-${fmt(e.amount)}</span></td>
+      </tr>`).join('');
+}
+
+function saveExpense() {
+  const amount = Number(document.getElementById('expAmount').value);
+  if(!amount){toast('Montant obligatoire','error');return;}
+  DB.addExpense({
+    category: document.getElementById('expCat').value,
+    description: document.getElementById('expDesc').value.trim(),
+    amount,
+  });
+  DB.log('Dépense', document.getElementById('expDesc').value+' — '+fmt(amount));
+  toast('Dépense enregistrée');
+  closeModal('expenseModal');
+  document.getElementById('expAmount').value='';
+  document.getElementById('expDesc').value='';
+  render();
+}
+
+document.getElementById('expenseModal').addEventListener('click',e=>{if(e.target===document.getElementById('expenseModal'))closeModal('expenseModal');});
+render();
+</script>
+</body>
+</html>
